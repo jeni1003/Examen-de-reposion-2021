@@ -1,212 +1,102 @@
-Vue.component('component-vehiculos',{
-    data:()=>{
-        return {
-            accion : 'nuevo',
-        msg    : '',
-        status : false,
-        error  : false,
-        buscar : "",
-        vehiculo:{
-            idvehiculo      : 0,
-            codigo         : '',
-            nombre         : '',
-            direccion      : '',
-            zona           : '',     
-        },
-        vehiculos:[]
-      }
-    },
-    methods:{
-        buscandovehiculo(){
-            this.vehiculos = this.vehiculos.filter((element,index,vehiculos) => element.nombre.toUpperCase().indexOf(this.buscar.toUpperCase())>=0 || element.codigo.toUpperCase().indexOf(this.buscar.toUpperCase())>=0 );
-            if( this.buscar.length<=0){
-                this.obtenerDatos();
-            }
-        },
-        buscandoCodigovehiculo(store){
-            let buscarCodigo = new campomise( (resolver,rechazar)=>{
-                let index = store.index("codigo"),
-                    data = index.get(this.vehiculo.codigo);
-                data.onsuccess=evt=>{
-                    resolver(data);
-                };
-                data.onerror=evt=>{
-                    rechazar(data);
-                };
-            });
-            return buscarCodigo;
-        },
-        async guardarvehiculo(){
-            let store = this.abrirStore("tblvehiculos",'readwrite'),
-                duplicado = false;
-            if( this.accion=='nuevo' ){
-                this.vehiculo.idvehiculo = generarIdUnicoDesdeFecha();
-                
-                let data = await this.buscandoCodigovehiculo(store);
-                duplicado = data.result!=undefined;
-            }
-            if( duplicado==false){
-                let query = store.put(this.vehiculo);
-                query.onsuccess=event=>{
-                    this.obtenerDatos();
-                    this.limpiar();   
-                    this.mostrarMsg('Registro guardado con éxito',false);
-                };
-                query.onerror=event=>{
-                    this.mostrarMsg('Error al guardar registro',true);
-                    console.log( event );
-                };
-            } else{
-                this.mostrarMsg('Código de vehiculo duplicado',true);
-            }
-        },
-        mostrarMsg(msg, error){
-            this.status = true;
-            this.msg = msg;
-            this.error = error;
-            this.quitarMsg(3);
-        },
-        quitarMsg(time){
-            setTimeout(()=>{
-                this.status=false;
-                this.msg = '';
-                this.error = false;
-            }, time*1000);
-        },
-        obtenerDatos(){
-            let store = this.abrirStore('tblvehiculos','readonly'),
-                data = store.getAll();
-            data.onsuccess=resp=>{
-                this.vehiculos = data.result;
-            };
-        },
+$(document).ready(function() {
+    var idVehiculo, opcion;
+    opcion = 4;
         
-        mostrarvehiculo(campo){
-            this.vehiculo = campo;
-            this.accion='modificar';
+    campo = $('#campo').DataTable({  
+        "ajax":{            
+            "url": "bd/crud.php", 
+            "method": 'POST', //usamos el metodo POST
+            "data":{opcion:opcion}, //enviamos opcion 4 para que haga un SELECT
+            "dataSrc":""
         },
-        limpiar(){
-            this.accion='nuevo';
-            this.vehiculo.idvehiculo='';
-            this.vehiculo.codigo='';
-            this.vehiculo.nombre='';
-            this.vehiculo.direccion='';
-            this.vehiculo.zona='';
-           
-            this.obtenerDatos();
-        },
-        eliminarvehiculo(campo){
-            if( confirm(`¿Está seguro que desea eliminar a: ${campo.nombre}?`) ){
-                let store = this.abrirStore("tblvehiculos",'readwrite'),
-                    req = store.delete(campo.idvehiculo);
-                req.onsuccess=resp=>{
-                    this.mostrarMsg('Registro eliminado con éxito',true);
-                    this.obtenerDatos();
-                };
-                req.onerror=resp=>{
-                    this.mostrarMsg('Error al eliminar el registro',true);
-                    console.log( resp );
-                };
-            }
-        },
-        abrirStore(store,modo){
-            let tx = db.transaction(store,modo);
-            return tx.objectStore(store);
+        "columns":[
+            {"data": "idVehiculo"},
+            {"data": "Marca"},
+            {"data": "Modelo"},
+            {"data": "year"},
+            {"data": "num_motor"},
+            {"data": "Num_Chasis"},
+            {"data": "status"},
+            {"defaultContent": "<div class='text-center'><div class='btn-group'><button class='btn btn-primary btn-sm btnEditar'><i class='material-icons'>edit</i></button><button class='btn btn-danger btn-sm btnBorrar'><i class='material-icons'>delete</i></button></div></div>"}
+        ]
+    });     
+    
+    var fila; //captura la fila, para editar o eliminar
+    //submit para el Alta y Actualización
+    $('#formcampo').submit(function(e){                         
+        e.preventDefault(); //evita el comportambiento normal del submit, es decir, recarga total de la página
+        Marca = $.trim($('#Marca').val());    
+        Modelo = $.trim($('#Modelo').val());
+        year = $.trim($('#year').val());    
+        num_motor = $.trim($('#num_motor').val());    
+        Num_Chasis = $.trim($('#Num_Chasis').val());
+        status = $.trim($('#status').val());                            
+            $.ajax({
+              url: "crud.php",
+              type: "POST",
+              datatype:"json",    
+              data:  {idVehiculo:idVehiculo, Marca:Marca, Modelo:Modelo, year:year, num_motor:num_motor, Num_Chasis:Num_Chasis ,status:status ,opcion:opcion},    
+              success: function(data) {
+                campo.ajax.reload(null, false);
+               }
+            });			        
+        $('#modalCRUD').modal('hide');											     			
+    });
+            
+     
+    
+    //para limpiar los campos antes de dar de Alta una Persona
+    $("#btnNuevo").click(function(){
+        opcion = 1; //alta           
+        idVehiculo=null;
+        $("#formcampo").trigger("reset");
+        $(".modal-header").css( "background-color", "#17a2b8");
+        $(".modal-header").css( "color", "white" );
+        $(".modal-title").text("Alta de Usuario");
+        $('#modalCRUD').modal('show');	    
+    });
+    
+    //Editar        
+    $(document).on("click", ".btnEditar", function(){		        
+        opcion = 2;//editar
+        fila = $(this).closest("tr");	        
+        idVehiculo = parseInt(fila.find('td:eq(0)').text()); //capturo el ID		            
+        Marca = fila.find('td:eq(1)').text();
+        Modelo = fila.find('td:eq(2)').text();
+        year = fila.find('td:eq(3)').text();
+        num_motor = fila.find('td:eq(4)').text();
+        Num_Chasis = fila.find('td:eq(5)').text();
+        status = fila.find('td:eq(6)').text();
+        $("#Marca").val(Marca);
+        $("#Modelo").val(Modelo);
+        $("#year").val(year);
+        $("#num_motor").val(num_motor);
+        $("#Num_Chasis").val(Num_Chasis);
+        $("#status").val(status);
+        $(".modal-header").css("background-color", "#007bff");
+        $(".modal-header").css("color", "white" );
+        $(".modal-title").text("Editar Usuario");		
+        $('#modalCRUD').modal('show');		   
+    });
+    
+    //Borrar
+    $(document).on("click", ".btnBorrar", function(){
+        fila = $(this);           
+        idVehiculo = parseInt($(this).closest('tr').find('td:eq(0)').text()) ;		
+        opcion = 3; //eliminar        
+        var respuesta = confirm("¿Está seguro de borrar el registro "+idVehiculo+"?");                
+        if (respuesta) {            
+            $.ajax({
+              url: "bd/crud.php",
+              type: "POST",
+              datatype:"json",    
+              data:  {opcion:opcion, idVehiculo:idVehiculo},    
+              success: function() {
+                  campo.row(fila.parents('tr')).remove().draw();                  
+               }
+            });	
         }
-    },
-    created(){
-        //this.obtenerDatos();
-    },
-    template:`
-    <form v-on:submit.prevent="guardarvehiculo" v-on:reset="limpiar">
-    <div class="row">
-        <div class="col-sm-5">
-            <div class="row p-2">
-                <div class="col-sm text-center text-white btn-dark">
-                    <h5>Registro de los vehiculos</h5>
-                </div>
-            </div>
-            <div class="row p-2">
-                <div class="col-sm">Código:</div>
-                <div class="col-sm">
-                    <input v-model="vehiculo.codigo" required pattern="^[0-9]{4}$" type="text" class="form-control form-control-sm" placeholder="Código" >
-                </div>
-            </div>
-            <div class="row p-2">
-                <div class="col-sm">Nombre: </div>
-                <div class="col-sm">
-                    <input v-model="vehiculo.nombre" required pattern="[A-ZÑña-z0-9 ]{5,65}" type="text" class="form-control form-control-sm" placeholder="Nombre">
-                </div>
-            </div>
-            <div class="row p-2">
-                <div class="col-sm">Dirección: </div>
-                <div class="col-sm">
-                    <input v-model="vehiculo.direccion" required pattern="[A-ZÑña-z0-9 ]{5,65}" type="text" class="form-control form-control-sm" placeholder="Dirección">
-                </div>
-            </div>
-            
-            <div class="row p-2">
-                <div class="col-sm"> Zona: </div>
-                <div class="col-sm">
-                    <input v-model="vehiculo.zona" required pattern="[A-ZÑña-z0-9 ]{5,15}" type="text" class="form-control form-control-sm" placeholder="Zona">
-                </div>
-            </div>
-            
-            <div class="row p-2">
-                <div class="col-sm text-center">
-                    <input type="submit" value="Guardar" class="btn btn-dark">
-                    <input type="reset" value="Limpiar" class="btn btn-info">
-                </div>
-            </div>
-            <div class="row p-2">
-                <div class="col-sm text-center">
-                    <div v-if="status" class="alert" v-bind:class="[error ? 'alert-danger' : 'alert-success']">
-                        {{ msg }}
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        
-        <div class="col-sm"></div>
-        <div class="col-sm-6 p-2">
-            <div class="row text-center text-white bg-info">
-                <div class="col"><h5>vehiculos Registrados</h5></div>
-            </div>
-            
-            <div class="row">
-                <div class="col">
-                    <table class="table table-sm table-hover">
-                        <thead>
-                            <tr>
-                                <td colspan="5">
-                                    <input v-model="buscar" v-on:keyup="buscandovehiculo" type="text" class="form-control form-contro-sm" placeholder="Buscar vehiculo">
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Código</th>
-                                <th>Nombre</th>
-                                <th>Dirección</th>
-                                <th>Zona</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="campo in vehiculos" v-on:click="mostrarvehiculo(campo)">
-                                <td>{{ campo.codigo }}</td>
-                                <td>{{ campo.nombre }}</td>
-                                <td>{{ campo.direccion }}</td>
-                                <td>{{ campo.zona }}</td>
-                                <td>
-                                    <a @click.stop="eliminarvehiculo(campo)" class="btn btn-danger">Eliminar</a>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</form>
-    `
-});
+     });
+         
+    });    
+    
